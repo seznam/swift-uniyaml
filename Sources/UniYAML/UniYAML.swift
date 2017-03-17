@@ -1,0 +1,403 @@
+import Foundation
+
+public enum UniYAMLError: Error {
+	case error(detail: String)
+}
+
+public struct UniYAML {
+
+	static public func parse(_ stream: String) throws -> YAML {
+		var document = [YAML]()
+		var stack = [YAML]()
+		// TODO var anchors = [String: YAML]()
+		var lines = 1
+		var index = stream.startIndex
+		var flow = [Character]()
+		var token: String?
+		while index < stream.endIndex {
+			do {
+				let indent: Int = parseIndent(stream, index: &index)
+				if token == nil {
+					token = try parseToken(stream, index: &index, to: ":", inFlow: flow.last)
+				}
+				guard let t = token?.trimmingCharacters(in: CharacterSet(charactersIn: " ")), !t.isEmpty else {
+					if index < stream.endIndex {
+						switch stream[index] {
+						case "\r", "\n", "\u{85}":
+							lines += 1
+						case ":":
+							throw UniYAMLError.error(detail: "unexpected colon")
+						default:
+							break
+						}
+						index = stream.index(after: index)
+					}
+					continue
+				}
+				var key: String?
+				var anchor: String?
+				var tag: String?
+				var value: String?
+				switch t {
+				case "---", "...":
+					if stack.count > 0 {
+						try foldStack(&stack, toIndent: -1)
+						document.append(stack.first!)
+						stack.removeAll()
+					}
+					token = nil
+					continue
+				case "#":
+					if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n\u{85}"), range: Range(uncheckedBounds: (index, stream.endIndex))) {
+						index = border.lowerBound
+					} else {
+						index = stream.endIndex
+					}
+					token = nil
+					continue
+				case "{":
+					if stack.count == 0 {
+						guard indent == 0 else {
+							throw UniYAMLError.error(detail: "unexpected indentation")
+						}
+						stack.append(YAML(indent: -1, type: .dictionary, key: nil, tag: nil, value: [String: YAML]()))
+					}
+					let last = stack.count - 1
+					if stack[last].type == .pending {
+						stack[last].type = .dictionary
+						stack[last].value = [String: YAML]()
+					}
+					flow.append("}")
+					token = nil
+					continue
+				case "[":
+					if stack.count == 0 {
+						guard indent == 0 else {
+							throw UniYAMLError.error(detail: "unexpected indentation")
+						}
+						stack.append(YAML(indent: -1, type: .array, key: nil, tag: nil, value: [YAML]()))
+					}
+					let last = stack.count - 1
+					if stack[last].type == .pending {
+						stack[last].type = .array
+						stack[last].value = [YAML]()
+					}
+					flow.append("]")
+					token = nil
+					continue
+				case "}", "]":
+					try foldStack(&stack, toIndent: nil)
+					guard let brace = flow.popLast(), t[t.startIndex] == brace else {
+						throw UniYAMLError.error(detail: "unexpected closing brace")
+					}
+					token = nil
+					continue
+				case "-":
+					if stack.count == 0 {
+						guard indent == 0 else {
+							throw UniYAMLError.error(detail: "unexpected indentation")
+						}
+						stack.append(YAML(indent: -1, type: .array, key: nil, tag: nil, value: [YAML]()))
+					}
+					let last = stack.count - 1
+					if stack[last].type == .pending {
+						stack[last].type = .array
+						stack[last].value = [YAML]()
+						if flow.isEmpty, indent < stack[last].indent {
+							throw UniYAMLError.error(detail: "unexpected indentation")
+						}
+					} else if flow.isEmpty, stack[last].indent > indent {
+						try foldStack(&stack, toIndent: indent + 1)
+					}
+					token = try parseToken(stream, index: &index, honorDash: false, inFlow: flow.last)
+					guard let tt = token?.trimmingCharacters(in: CharacterSet(charactersIn: " ")), !tt.isEmpty else {
+						stack.append(YAML(indent: indent + 1, type: .pending, key: nil, tag: nil, value: nil))
+						continue
+					}
+					switch tt {
+					case "#":
+						continue
+					case "{", "[":
+						stack.append(YAML(indent: indent, type: .pending, key: nil, tag: nil, value: nil))
+						continue
+					case "}", "]":
+						throw UniYAMLError.error(detail: "unexpected closing brace")
+					case "|", ">":
+						value = try parseMultilineValue(stream, index: &index, indent: indent, folded: (tt == ">"))
+					default:
+						(anchor, tag, value) = parseValue(tt)
+					}
+					token = nil
+				default:
+					guard index < stream.endIndex else {
+						throw UniYAMLError.error(detail: "unexpected stream end")
+					}
+					if stream[index] == ":" {
+						if stack.count == 0 {
+							guard indent == 0 else {
+								throw UniYAMLError.error(detail: "unexpected indentation")
+							}
+							stack.append(YAML(indent: -1, type: .dictionary, key: nil, tag: nil, value: [String: YAML]()))
+						}
+						let last = stack.count - 1
+						if stack[last].type == .pending {
+							stack[last].type = .dictionary
+							stack[last].value = [String: YAML]()
+							if flow.isEmpty, indent <= stack[last].indent {
+								throw UniYAMLError.error(detail: "unexpected indentation")
+							}
+						} else if flow.isEmpty, stack[last].indent >= indent {
+							try foldStack(&stack, toIndent: indent)
+						}
+						key = dequote(t)
+						index = stream.index(after: index)
+						token = try parseToken(stream, index: &index, honorDash: false, inFlow: flow.last)
+						if let tt = token?.trimmingCharacters(in: CharacterSet(charactersIn: " ")), !tt.isEmpty {
+							switch tt {
+							case "#":
+								continue
+							case "{", "[":
+								stack.append(YAML(indent: indent, type: .pending, key: key, tag: nil, value: nil))
+								continue
+							case "}", "]":
+								throw UniYAMLError.error(detail: "unexpected closing brace")
+							case "|", ">":
+								value = try parseMultilineValue(stream, index: &index, indent: indent, folded: (tt == ">"))
+							default:
+								(anchor, tag, value) = parseValue(tt)
+							}
+						}
+					} else if let f = flow.last, f == "]" {
+						(anchor, tag, value) = parseValue(t)
+					} else {
+						throw UniYAMLError.error(detail: "unexpected value")
+					}
+					token = nil
+				}
+
+				//print("DEBUG\tindent: \(indent), key: \(key), value: \(value)")
+
+				var last = stack.count - 1
+				if let k = key {
+					if let v = value {
+						guard let dictionary = stack[last].value as? [String: YAML] else {
+							throw UniYAMLError.error(detail: "value type mismatch")
+						}
+						if flow.isEmpty, let first = dictionary.values.first?.indent, indent != first {
+							throw UniYAMLError.error(detail: "indentation mismatch")
+						}
+						var d = dictionary
+						d[k] = YAML(indent: indent, type: .string, key: k, tag: tag, value: v)
+						stack[last].value = d
+					} else {
+						stack.append(YAML(indent: indent, type: .pending, key: k, tag: nil, value: nil))
+					}
+				} else if let v = value {
+					guard let array = stack[last].value as? [YAML] else {
+						throw UniYAMLError.error(detail: "value type mismatch")
+					}
+					var a = array
+					if flow.isEmpty, let previous = array.last {
+						if previous.indent < indent {
+							throw UniYAMLError.error(detail: "indentation mismatch")
+						} else if previous.indent > indent {
+							try foldStack(&stack, toIndent: indent + 1)
+							last = stack.count - 1
+							guard let array2 = stack[last].value as? [YAML] else {
+								throw UniYAMLError.error(detail: "value type mismatch")
+							}
+							a = array2
+						}
+					}
+					a.append(YAML(indent: indent, type: .string, key: nil, tag: tag, value: v))
+					stack[last].value = a
+				}
+			} catch UniYAMLError.error(let detail) {
+				throw UniYAMLError.error(detail: "\(detail) at line \(lines)")
+			}
+		}
+		if stack.count > 0 {
+			guard flow.isEmpty else {
+				throw UniYAMLError.error(detail: "unclosed brace")
+			}
+			try foldStack(&stack, toIndent: -1)
+			document.append(stack.first!)
+		}
+		var result: YAML
+		switch document.count {
+		case 0:
+			result = YAML(indent: 0, type: .empty, key: nil, tag: nil, value: nil)
+		case 1:
+			result = document[0]
+		default:
+			result = YAML(indent: 0, type: .array, key: nil, tag: nil, value: document)
+		}
+		return result
+	}
+
+	static private func parseIndent(_ stream: String, index: inout String.Index) -> Int {
+		var indent = 0
+		while index < stream.endIndex {
+			guard stream[index] == " " else {
+				break
+			}
+			index = stream.index(after: index)
+			indent += 1
+		}
+		return indent
+	}
+
+	static private func parseToken(_ stream: String, index: inout String.Index, to: String = "", honorDash: Bool = true, inFlow: Character? = nil) throws -> String? {
+		guard index < stream.endIndex else {
+			return nil
+		}
+		_ = parseIndent(stream, index: &index)
+		var search = Range(uncheckedBounds: (index, stream.endIndex))
+		var location = search
+		switch stream[index] {
+		case "\r", "\n", "\u{85}":
+			return nil
+		case "#", "{", "}", "[", "]", "|", ">":
+			let i = stream.index(after: index)
+			location = Range(uncheckedBounds: (index, i))
+			index = i
+		case "-" where honorDash:
+			let stop = (inFlow != nil) ? " ,]}":" \r\n\u{85}"
+			guard inFlow == nil, let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: stop), range: search) else {
+				throw UniYAMLError.error(detail: "unexpected value")
+			}
+			location = Range(uncheckedBounds: (index, border.lowerBound))
+			index = location.upperBound
+		case "'":
+			var i = stream.index(after: index)
+			search = Range(uncheckedBounds: (i, stream.endIndex))
+			guard let ii = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "'"), range: search) else {
+				throw UniYAMLError.error(detail: "unclosed quotes")
+			}
+			guard ii.lowerBound < stream.endIndex, stream[ii] == "'" else {
+				throw UniYAMLError.error(detail: "unclosed quotes")
+			}
+			location = Range(uncheckedBounds: (index, stream.index(after: ii.lowerBound)))
+			i = ii.upperBound
+			index = i
+		case "\"":
+			var i = stream.index(after: index)
+			while i < stream.endIndex {
+				search = Range(uncheckedBounds: (i, stream.endIndex))
+				guard let ii = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\""), range: search) else {
+					throw UniYAMLError.error(detail: "unclosed quotes")
+				}
+				guard ii.lowerBound < stream.endIndex, stream[ii] == "\"" else {
+					throw UniYAMLError.error(detail: "unclosed quotes")
+				}
+				location = Range(uncheckedBounds: (index, stream.index(after: ii.lowerBound)))
+				i = ii.upperBound
+				if stream[stream.index(before: ii.lowerBound)] != "\\" {
+					break
+				}
+			}
+			index = i
+		default:
+			let stop = (inFlow != nil) ? "\(to),]}":"\(to)\r\n\u{85}"
+			if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: stop), range: search) {
+				location = Range(uncheckedBounds: (index, border.lowerBound))
+			}
+			index = location.upperBound
+		}
+		_ = parseIndent(stream, index: &index)
+		return (location.lowerBound == location.upperBound) ? nil:stream.substring(with: location)
+	}
+
+	static private func parseValue(_ string: String?) -> (String?, String?, String?) {
+		let anchor: String? = nil // TODO
+		let tag: String? = nil // TODO
+		let value = dequote(string)
+		return (anchor, tag, value)
+	}
+
+	static private func parseMultilineValue(_ stream: String, index: inout String.Index, indent: Int, folded: Bool) throws -> String? {
+		guard index < stream.endIndex else {
+			throw UniYAMLError.error(detail: "unexpected stream end")
+		}
+		guard stream[index] == "\r" || stream[index] == "\n" || stream[index] == "\u{85}" else {
+			throw UniYAMLError.error(detail: "unexpected trailing characters")
+		}
+		index = stream.index(after: index)
+		var value: String = ""
+		var glue: Character = " "
+		while index < stream.endIndex {
+			var i = index
+			while stream[i] == " ", i < stream.endIndex {
+				i = stream.index(after: i)
+			}
+			guard stream.distance(from: index, to: i) > indent else {
+				break
+			}
+			index = i
+			var location = Range(uncheckedBounds: (index, stream.endIndex))
+			if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n\u{85}"), range: location) {
+				location = Range(uncheckedBounds: (index, border.lowerBound))
+				glue = (folded) ? " ":stream[border.lowerBound]
+			}
+			index = stream.index(after: location.upperBound)
+			if !value.isEmpty {
+				value += "\(glue)"
+			}
+			value += stream.substring(with: location)
+		}
+		return value
+	}
+
+	static private func dequote(_ string: String?) -> String? {
+		guard let ss = string else {
+			return nil
+		}
+		let s = ss.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\u{85}", with: "")
+		if s.hasPrefix("'"), s.hasSuffix("'") {
+			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
+		} else if s.hasPrefix("\""), s.hasSuffix("\"") {
+			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
+					.replacingOccurrences(of: "\\0", with: "\0")
+					.replacingOccurrences(of: "\\t", with: "\t")
+					.replacingOccurrences(of: "\\n", with: "\n")
+					.replacingOccurrences(of: "\\r", with: "\r")
+					.replacingOccurrences(of: "\\\"", with: "\"")
+					.replacingOccurrences(of: "\\'", with: "'")
+					.replacingOccurrences(of: "\\\\", with: "\\")
+		}
+		return s
+	}
+
+	static private func foldStack(_ stack: inout [YAML], toIndent: Int? = nil) throws -> Void {
+		while stack.count > 1 {
+			if let indent = toIndent, stack.last!.indent < indent {
+				break
+			}
+			let last = stack.popLast()
+			let idx = stack.count - 1
+			switch stack[idx].type {
+			case .array:
+				guard let array = stack[idx].value as? [YAML] else {
+					throw UniYAMLError.error(detail: "array value mismatch")
+				}
+				var a = array
+				a.append(last!)
+				stack[idx].value = a
+			case .dictionary:
+				guard let key = last!.key, let dictionary = stack[idx].value as? [String: YAML] else {
+					throw UniYAMLError.error(detail: "dictionary value mismatch")
+				}
+				var d = dictionary
+				d[key] = last!
+				stack[idx].value = d
+			default:
+				throw UniYAMLError.error(detail: "unexpected value")
+			}
+			if let indent = toIndent, last!.indent > indent {
+				continue
+			}
+			break
+		}
+	}
+
+}
