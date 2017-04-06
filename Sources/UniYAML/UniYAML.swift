@@ -235,15 +235,22 @@ public struct UniYAML {
 		return result
 	}
 
-	static private func parseIndent(_ stream: String, index: inout String.Index) -> Int {
+	static private func checkIndent(_ stream: String, index: String.Index) -> Int {
 		var indent = 0
-		while index < stream.endIndex {
-			guard stream[index] == " " else {
+		var idx = index
+		while idx < stream.endIndex {
+			guard stream[idx] == " " else {
 				break
 			}
-			index = stream.index(after: index)
+			idx = stream.index(after: idx)
 			indent += 1
 		}
+		return indent
+	}
+
+	static private func parseIndent(_ stream: String, index: inout String.Index) -> Int {
+		let indent = checkIndent(stream, index: index)
+		index = stream.index(index, offsetBy: indent)
 		return indent
 	}
 
