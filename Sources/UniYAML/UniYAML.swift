@@ -315,7 +315,7 @@ public struct UniYAML {
 		return (anchor, tag, value)
 	}
 
-	static private func parseMultilineValue(_ stream: String, index: inout String.Index, indent: Int, folded: Bool) throws -> String? {
+	static private func parseMultilineValue(_ stream: String, index: inout String.Index, indent: Int, folded: Bool) throws -> String {
 		guard index < stream.endIndex else {
 			throw UniYAMLError.error(detail: "unexpected stream end")
 		}
