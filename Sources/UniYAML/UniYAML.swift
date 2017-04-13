@@ -169,6 +169,15 @@ public struct UniYAML {
 						}
 					} else if let f = flow.last, f == "]" {
 						(anchor, tag, value) = parseValue(t)
+					} else if flow.isEmpty, stack.last?.type == .pending {
+						let last = stack.count - 1
+						guard indent > stack[last].indent else {
+							throw UniYAMLError.error(detail: "unexpected indentation")
+						}
+						index = stream.index(index, offsetBy: -(indent + t.characters.count + 1))
+						lines -= 1
+						stack[last].type = .string
+						stack[last].value = try parseMultilineValue(stream, index: &index, indent: stack[last].indent, folded: true)
 					} else {
 						throw UniYAMLError.error(detail: "unexpected value")
 					}
@@ -186,8 +195,14 @@ public struct UniYAML {
 						if flow.isEmpty, let first = dictionary.values.first?.indent, indent != first {
 							throw UniYAMLError.error(detail: "indentation mismatch")
 						}
+						var complete = v
+						if flow.isEmpty, indent < checkIndent(stream, index: stream.index(after: index)) {
+							// NOTE: handle the case where a value for a key spans to next line(s)
+							let tail = try parseMultilineValue(stream, index: &index, indent: indent, folded: true)
+							complete += " \(tail)"
+						}
 						var d = dictionary
-						d[k] = YAML(indent: indent, type: .string, key: k, tag: tag, value: v)
+						d[k] = YAML(indent: indent, type: .string, key: k, tag: tag, value: complete)
 						stack[last].value = d
 					} else {
 						stack.append(YAML(indent: indent, type: .pending, key: k, tag: nil, value: nil))
