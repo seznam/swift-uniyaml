@@ -123,7 +123,7 @@ public struct UniYAML {
 					case "}", "]":
 						throw UniYAMLError.error(detail: "unexpected closing brace")
 					case "|", ">":
-						value = try parseMultilineValue(stream, index: &index, indent: indent, folded: (tt == ">"))
+						value = try parseMultilineValue(stream, index: &index, line: &lines, indent: indent, folded: (tt == ">"))
 					default:
 						(anchor, tag, value) = parseValue(tt)
 					}
@@ -162,7 +162,7 @@ public struct UniYAML {
 							case "}", "]":
 								throw UniYAMLError.error(detail: "unexpected closing brace")
 							case "|", ">":
-								value = try parseMultilineValue(stream, index: &index, indent: indent, folded: (tt == ">"))
+								value = try parseMultilineValue(stream, index: &index, line: &lines, indent: indent, folded: (tt == ">"))
 							default:
 								(anchor, tag, value) = parseValue(tt)
 							}
@@ -177,7 +177,7 @@ public struct UniYAML {
 						index = stream.index(index, offsetBy: -(indent + t.characters.count + 1))
 						lines -= 1
 						stack[last].type = .string
-						stack[last].value = try parseMultilineValue(stream, index: &index, indent: stack[last].indent, folded: true)
+						stack[last].value = try parseMultilineValue(stream, index: &index, line: &lines, indent: stack[last].indent, folded: true)
 					} else {
 						throw UniYAMLError.error(detail: "unexpected value")
 					}
@@ -198,7 +198,7 @@ public struct UniYAML {
 						var complete = v
 						if flow.isEmpty, indent < checkIndent(stream, index: stream.index(after: index)) {
 							// NOTE: handle the case where a value for a key spans to next line(s)
-							let tail = try parseMultilineValue(stream, index: &index, indent: indent, folded: true)
+							let tail = try parseMultilineValue(stream, index: &index, line: &lines, indent: indent, folded: true)
 							complete += " \(tail)"
 						}
 						var d = dictionary
@@ -337,7 +337,7 @@ public struct UniYAML {
 		return (anchor, tag, value)
 	}
 
-	static private func parseMultilineValue(_ stream: String, index: inout String.Index, indent: Int, folded: Bool) throws -> String {
+	static private func parseMultilineValue(_ stream: String, index: inout String.Index, line: inout Int, indent: Int, folded: Bool) throws -> String {
 		guard index < stream.endIndex else {
 			throw UniYAMLError.error(detail: "unexpected stream end")
 		}
@@ -345,27 +345,36 @@ public struct UniYAML {
 			throw UniYAMLError.error(detail: "unexpected trailing characters")
 		}
 		index = stream.index(after: index)
+		line += 1
 		var value: String = ""
 		var glue: Character = " "
+		var block: Int = -1
 		while index < stream.endIndex {
-			var i = index
-			while stream[i] == " ", i < stream.endIndex {
-				i = stream.index(after: i)
-			}
-			guard stream.distance(from: index, to: i) > indent else {
+			let i = checkIndent(stream, index: index)
+			guard i > indent else {
 				break
 			}
-			index = i
+			if block == -1 {
+				block = i
+			}
+			guard i >= block else {
+				throw UniYAMLError.error(detail: "unexpected indentation")
+			}
+			index = stream.index(index, offsetBy: i)
 			var location = Range(uncheckedBounds: (index, stream.endIndex))
 			if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n\u{85}"), range: location) {
 				location = Range(uncheckedBounds: (index, border.lowerBound))
 				glue = (folded) ? " ":stream[border.lowerBound]
 			}
 			index = stream.index(after: location.upperBound)
+			line += 1
 			if !value.isEmpty {
 				value += "\(glue)"
 			}
 			value += stream.substring(with: location)
+		}
+		guard !value.isEmpty else {
+			throw UniYAMLError.error(detail: "missing value")
 		}
 		return value
 	}
