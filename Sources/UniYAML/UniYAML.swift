@@ -141,10 +141,13 @@ public struct UniYAML {
 						}
 						let last = stack.count - 1
 						if stack[last].type == .pending {
-							stack[last].type = .dictionary
-							stack[last].value = [String: YAML]()
 							if flow.isEmpty, indent <= stack[last].indent {
-								throw UniYAMLError.error(detail: "unexpected indentation")
+								stack[last].type = .array
+								stack[last].value = [YAML]()
+								try foldStack(&stack, toIndent: indent)
+							} else {
+								stack[last].type = .dictionary
+								stack[last].value = [String: YAML]()
 							}
 						} else if flow.isEmpty, stack[last].indent >= indent {
 							try foldStack(&stack, toIndent: indent)
