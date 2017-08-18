@@ -279,6 +279,7 @@ public struct UniYAML {
 		_ = parseIndent(stream, index: &index)
 		var search = Range(uncheckedBounds: (index, stream.endIndex))
 		var location = search
+		var fragments = ""
 		switch stream[index] {
 		case "\r", "\n", "\u{85}":
 			return nil
@@ -295,15 +296,31 @@ public struct UniYAML {
 			index = location.upperBound
 		case "'":
 			var i = stream.index(after: index)
-			search = Range(uncheckedBounds: (i, stream.endIndex))
-			guard let ii = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "'"), range: search) else {
-				throw UniYAMLError.error(detail: "unclosed quotes")
+			while i < stream.endIndex {
+				search = Range(uncheckedBounds: (i, stream.endIndex))
+				guard let ii = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "'"), range: search) else {
+					throw UniYAMLError.error(detail: "unclosed quotes")
+				}
+				guard ii.lowerBound < stream.endIndex, stream[ii] == "'" else {
+					throw UniYAMLError.error(detail: "unclosed quotes")
+				}
+				// NOTE: bad ugly "fragments" hack to correctly parse weird notation like this:
+				//       key: 'this ''fragmented'' value'
+				//       (yes, something like this really can be produced, by Ruby's yaml serializer in our case)
+				if ii.upperBound < stream.endIndex, stream[ii.upperBound] == "'" {
+					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.lowerBound))))
+					i = stream.index(after: ii.upperBound)
+					continue
+				}
+				if fragments.isEmpty {
+					location = Range(uncheckedBounds: (index, stream.index(after: ii.lowerBound)))
+					i = ii.upperBound
+				} else {
+					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.lowerBound))))
+					i = (ii.upperBound < stream.endIndex) ? stream.index(after: ii.upperBound):stream.endIndex
+				}
+				break
 			}
-			guard ii.lowerBound < stream.endIndex, stream[ii] == "'" else {
-				throw UniYAMLError.error(detail: "unclosed quotes")
-			}
-			location = Range(uncheckedBounds: (index, stream.index(after: ii.lowerBound)))
-			i = ii.upperBound
 			index = i
 		case "\"":
 			var i = stream.index(after: index)
@@ -330,6 +347,10 @@ public struct UniYAML {
 			index = location.upperBound
 		}
 		_ = parseIndent(stream, index: &index)
+		// NOTE: echoes of bad ugly hack, see the comment above
+		if !fragments.isEmpty {
+			return fragments
+		}
 		return (location.lowerBound == location.upperBound) ? nil:stream.substring(with: location)
 	}
 
