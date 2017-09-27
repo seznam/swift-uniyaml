@@ -304,11 +304,10 @@ public struct UniYAML {
 				guard ii.lowerBound < stream.endIndex, stream[ii] == "'" else {
 					throw UniYAMLError.error(detail: "unclosed quotes")
 				}
-				// NOTE: bad ugly "fragments" hack to correctly parse weird notation like this:
+				// NOTE: bad ugly "fragments" hack to correctly parse notation like this:
 				//       key: 'this ''fragmented'' value'
-				//       (yes, something like this really can be produced, by Ruby's yaml serializer in our case)
 				if ii.upperBound < stream.endIndex, stream[ii.upperBound] == "'" {
-					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.lowerBound))))
+					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.upperBound))))
 					i = stream.index(after: ii.upperBound)
 					continue
 				}
