@@ -6,7 +6,7 @@ public enum UniYAMLError: Error {
 
 public struct UniYAML {
 
-	static public func parse(_ stream: String) throws -> YAML {
+	static public func decode(_ stream: String) throws -> YAML {
 		var document = [YAML]()
 		var stack = [YAML]()
 		// TODO var anchors = [String: YAML]()
