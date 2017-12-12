@@ -6,7 +6,7 @@ public enum UniYAMLError: Error {
 
 public struct UniYAML {
 
-	static public func parse(_ stream: String) throws -> YAML {
+	static public func decode(_ stream: String) throws -> YAML {
 		var document = [YAML]()
 		var stack = [YAML]()
 		// TODO var anchors = [String: YAML]()
@@ -287,9 +287,8 @@ public struct UniYAML {
 			let i = stream.index(after: index)
 			location = Range(uncheckedBounds: (index, i))
 			index = i
-		case "-" where honorDash:
-			let stop = (inFlow != nil) ? " ,]}":" \r\n\u{85}"
-			guard inFlow == nil, let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: stop), range: search) else {
+		case "-" where (honorDash && inFlow == nil):
+			guard let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: " \r\n\u{85}"), range: search) else {
 				throw UniYAMLError.error(detail: "unexpected value")
 			}
 			location = Range(uncheckedBounds: (index, border.lowerBound))
