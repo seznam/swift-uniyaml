@@ -4,6 +4,8 @@ public enum YAMLType: String {
 	case pending
 	case empty
 	case string
+	case integer
+	case double
 	case array
 	case dictionary
 }
