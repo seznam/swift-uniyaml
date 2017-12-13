@@ -105,4 +105,86 @@ public struct YAML {
 		}
 		return dictionary[key]
 	}
+	public init(indent: Int, type: YAMLType, key: String?, tag: String?, value: Any?) {
+		self.indent = indent
+		self.type = type
+		self.value = value
+		self.key = key
+		self.tag = tag
+	}
+	public init(_ string: String) {
+		indent = 0
+		type = .string
+		value = string
+		key = nil
+		tag = nil
+	}
+	public init(_ int: Int) {
+		indent = 0
+		type = .integer
+		value = int
+		key = nil
+		tag = nil
+	}
+	public init(_ uint: UInt) {
+		indent = 0
+		type = .integer
+		value = Int(uint)
+		key = nil
+		tag = nil
+	}
+	public init(_ double: Double) {
+		indent = 0
+		type = .double
+		value = double
+		key = nil
+		tag = nil
+	}
+	public init?(_ array: [Any]) {
+		var obj = [YAML]()
+		for member in array {
+			if let s = member as? String {
+				obj.append(YAML(s))
+			} else if let i = member as? Int {
+				obj.append(YAML(i))
+			} else if let u = member as? UInt {
+				obj.append(YAML(u))
+			} else if let d = member as? Double {
+				obj.append(YAML(d))
+			} else if let y = member as? YAML {
+				obj.append(y)
+			} else {
+				return nil
+			}
+		}
+		indent = 0
+		type = .array
+		value = obj
+		key = nil
+		tag = nil
+	}
+	public init?(_ dictionary: [String: Any]) {
+		var obj = [String: YAML]()
+		for (k, v) in dictionary {
+			if let s = v as? String {
+				obj[k] = YAML(s)
+			} else if let i = v as? Int {
+				obj[k] = YAML(i)
+			} else if let u = v as? UInt {
+				obj[k] = YAML(u)
+			} else if let d = v as? Double {
+				obj[k] = YAML(d)
+			} else if let y = v as? YAML {
+				obj[k] = y
+			} else {
+				return nil
+			}
+			obj[k]!.key = k
+		}
+		indent = 0
+		type = .dictionary
+		value = obj
+		key = nil
+		tag = nil
+	}
 }
