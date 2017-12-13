@@ -34,25 +34,36 @@ public struct YAML {
 		return (type == .string) ? (value as? String):nil
 	}
 	public var int: Int? {
-		if type == .string, let i = value as? String {
+		if type == .integer, let i = value as? Int {
+			return i
+		} else if type == .string, let i = value as? String {
 			return Int(i)
 		}
 		return nil
 	}
 	public var uint: UInt? {
-		if type == .string, let i = value as? String, let u = UInt(i) {
+		if type == .integer, let i = value as? Int {
+			return UInt(i)
+		} else if type == .string, let i = value as? String, let u = UInt(i) {
 			return u
 		}
 		return nil
 	}
 	public var double: Double? {
-		if type == .string, let i = value as? String {
+		if type == .double, let d = value as? Double {
+			return d
+		} else if type == .string, let i = value as? String {
 			return Double(i)
 		}
 		return nil
 	}
 	public var bool: Bool? {
-		guard type == .string, let s = value as? String else {
+		var s: String
+		if type == .string {
+			s = value as! String
+		} else if type == .integer {
+			s = "\(value as! Int)"
+		} else {
 			return nil
 		}
 		switch s.lowercased() {
