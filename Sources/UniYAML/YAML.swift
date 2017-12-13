@@ -94,16 +94,32 @@ public struct YAML {
 		return array.last
 	}
 	public subscript(index: Int) -> YAML? {
-		guard type == .array, let array = value as? [YAML] else {
-			return nil
+		get {
+			guard type == .array, let array = value as? [YAML] else {
+				return nil
+			}
+			return array[index]
 		}
-		return array[index]
+		set(newValue) {
+			if let v = newValue, type == .array, var array = value as? [YAML] {
+				array[index] = v
+				value = array
+			}
+		}
 	}
 	public subscript(key: String) -> YAML? {
-		guard type == .dictionary, let dictionary = value as? [String: YAML] else {
-			return nil
+		get {
+			guard type == .dictionary, let dictionary = value as? [String: YAML] else {
+				return nil
+			}
+			return dictionary[key]
 		}
-		return dictionary[key]
+		set(newValue) {
+			if let v = newValue, type == .dictionary, var dictionary = value as? [String: YAML] {
+				dictionary[key] = YAML(indent: 0, type: v.type, key: key, tag: nil, value: v.value)
+				value = dictionary
+			}
+		}
 	}
 	public init(indent: Int, type: YAMLType, key: String?, tag: String?, value: Any?) {
 		self.indent = indent
