@@ -410,13 +410,14 @@ public struct UniYAML {
 			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
 		} else if s.hasPrefix("\""), s.hasSuffix("\"") {
 			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
+					.replacingOccurrences(of: "\\\\", with: "_backslash_holder_") // XXX: bad ugly hack
 					.replacingOccurrences(of: "\\0", with: "\0")
 					.replacingOccurrences(of: "\\t", with: "\t")
 					.replacingOccurrences(of: "\\n", with: "\n")
 					.replacingOccurrences(of: "\\r", with: "\r")
 					.replacingOccurrences(of: "\\\"", with: "\"")
 					.replacingOccurrences(of: "\\'", with: "'")
-					.replacingOccurrences(of: "\\\\", with: "\\")
+					.replacingOccurrences(of: "_backslash_holder_", with: "\\")
 		}
 		return s
 	}
