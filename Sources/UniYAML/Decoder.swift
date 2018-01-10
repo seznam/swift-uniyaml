@@ -177,7 +177,7 @@ public struct UniYAML {
 						guard indent > stack[last].indent else {
 							throw UniYAMLError.error(detail: "unexpected indentation")
 						}
-						index = stream.index(index, offsetBy: -(indent + t.characters.count + 1))
+						index = stream.index(index, offsetBy: -(indent + t.count + 1))
 						lines -= 1
 						stack[last].type = .string
 						stack[last].value = try parseMultilineValue(stream, index: &index, line: &lines, indent: stack[last].indent, folded: true)
@@ -306,7 +306,7 @@ public struct UniYAML {
 				// NOTE: bad ugly "fragments" hack to correctly parse notation like this:
 				//       key: 'this ''fragmented'' value'
 				if ii.upperBound < stream.endIndex, stream[ii.upperBound] == "'" {
-					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.upperBound))))
+					fragments.append(String(stream[i..<ii.upperBound]))
 					i = stream.index(after: ii.upperBound)
 					continue
 				}
@@ -314,7 +314,7 @@ public struct UniYAML {
 					location = Range(uncheckedBounds: (index, stream.index(after: ii.lowerBound)))
 					i = ii.upperBound
 				} else {
-					fragments.append(stream.substring(with: Range(uncheckedBounds: (i, ii.lowerBound))))
+					fragments.append(String(stream[i..<ii.lowerBound]))
 					i = (ii.upperBound < stream.endIndex) ? stream.index(after: ii.upperBound):stream.endIndex
 				}
 				break
@@ -349,7 +349,7 @@ public struct UniYAML {
 		if !fragments.isEmpty {
 			return fragments
 		}
-		return (location.lowerBound == location.upperBound) ? nil:stream.substring(with: location)
+		return (location.lowerBound == location.upperBound) ? nil:String(stream[location])
 	}
 
 	static private func parseValue(_ string: String?) -> (String?, String?, String?) {
@@ -393,7 +393,7 @@ public struct UniYAML {
 			if !value.isEmpty {
 				value += "\(glue)"
 			}
-			value += stream.substring(with: location)
+			value += stream[location]
 		}
 		guard !value.isEmpty else {
 			throw UniYAMLError.error(detail: "missing value")
@@ -407,9 +407,9 @@ public struct UniYAML {
 		}
 		let s = ss.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\u{85}", with: "")
 		if s.hasPrefix("'"), s.hasSuffix("'") {
-			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
+			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)])
 		} else if s.hasPrefix("\""), s.hasSuffix("\"") {
-			return s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
+			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
 					.replacingOccurrences(of: "\\\\", with: "_backslash_holder_") // XXX: bad ugly hack
 					.replacingOccurrences(of: "\\0", with: "\0")
 					.replacingOccurrences(of: "\\t", with: "\t")
@@ -417,7 +417,7 @@ public struct UniYAML {
 					.replacingOccurrences(of: "\\r", with: "\r")
 					.replacingOccurrences(of: "\\\"", with: "\"")
 					.replacingOccurrences(of: "\\'", with: "'")
-					.replacingOccurrences(of: "_backslash_holder_", with: "\\")
+					.replacingOccurrences(of: "_backslash_holder_", with: "\\"))
 		}
 		return s
 	}
