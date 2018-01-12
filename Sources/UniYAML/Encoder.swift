@@ -99,7 +99,7 @@ extension UniYAML {
 					indent -= 1
 				}
 
-				if notation == case .yaml {
+				if notation == .yaml {
 					stream += encodeYaml(current, prevToken)
 				} else {
 					stream += encodeJson(current)
