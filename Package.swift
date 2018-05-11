@@ -8,6 +8,7 @@ let package = Package(
 		.library(name: "UniYAML", targets: ["UniYAML"])
 	],
 	targets: [
-		.target(name: "UniYAML")
+		.target(name: "UniYAML"),
+		.testTarget(name: "UniYAMLTests", dependencies: ["UniYAML"])
 	]
 )
