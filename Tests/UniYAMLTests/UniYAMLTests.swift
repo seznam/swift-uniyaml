@@ -18,6 +18,7 @@ class UniYAMLTests: XCTestCase {
 		("testYAMLArrayDecode", testYAMLArrayDecode),
 		("testJSONDictDecode", testJSONDictDecode),
 		("testYAMLDictDecode", testYAMLDictDecode),
+		("testYAMLDictArrayDictsDecode", testYAMLDictArrayDictsDecode),
 		("testJSONComplexDecode", testJSONComplexDecode),
 		("testYAMLComplexDecode", testYAMLComplexDecode),
 		("testJSONArrayEncode", testJSONArrayEncode),
@@ -225,6 +226,44 @@ class UniYAMLTests: XCTestCase {
 			obj!["surname"]!.string! == "Vivaldi" &&
 			obj!["nickname"]!.string!.hasSuffix("Rosso") &&
 			obj!["date of birth"]!.string!.hasPrefix("4.3.")
+		)
+	}
+
+	func testYAMLDictArrayDictsDecode() {
+		let yaml = """
+---
+
+classic:
+  -
+    author: Ludwig van Beethoven
+    title: Für Elise
+    published: 1867
+    duration: 3:30
+  -
+    author: Wolfgang Amdeus Mozart
+    title: Eine kleine Nachtmusik
+    published: 1787
+    duration: 5:45
+  -
+    author: Bedřich Smetana
+    title: Vltava
+    published: 1874
+    duration: 12:50
+"""
+		//print(yaml)
+		var obj: YAML?
+		do {
+			obj = try UniYAML.decode(yaml)
+		} catch {
+			print(error)
+			obj = nil
+		}
+		let array = obj?["classic"]?.array
+		let dict = array?.last?.dictionary
+		XCTAssert(dict != nil &&
+			dict!.keys.count == 4 &&
+			dict!["author"]!.string! == "Bedřich Smetana" &&
+			dict!["published"]!.int! == 1874
 		)
 	}
 
