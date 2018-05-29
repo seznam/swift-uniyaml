@@ -199,7 +199,7 @@ public struct UniYAML {
 							throw UniYAMLError.error(detail: "indentation mismatch")
 						}
 						var complete = v
-						if flow.isEmpty, indent < checkIndent(stream, index: stream.index(after: index)) {
+						if flow.isEmpty, index < stream.endIndex, indent < checkIndent(stream, index: stream.index(after: index)) {
 							// NOTE: handle the case where a value for a key spans to next line(s)
 							let tail = try parseMultilineValue(stream, index: &index, line: &lines, indent: indent, folded: true)
 							complete += " \(tail)"
