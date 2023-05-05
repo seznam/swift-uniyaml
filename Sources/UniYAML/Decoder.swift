@@ -297,6 +297,9 @@ public struct UniYAML {
 			return nil
 		}
 		_ = parseIndent(stream, index: &index)
+		guard index < stream.endIndex else {
+			return nil
+		}
 		var search = Range(uncheckedBounds: (index, stream.endIndex))
 		var location = search
 		var fragments = ""

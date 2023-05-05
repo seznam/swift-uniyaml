@@ -32,6 +32,7 @@ class UniYAMLTests: XCTestCase {
 		("testYAMLUnexpectedColon", testYAMLUnexpectedColon),
 		("testYAMLUnexpectedBrace", testYAMLUnexpectedBrace),
 		("testYAMLUnexpectedEnd", testYAMLUnexpectedEnd),
+		("testPartialYAML", testPartialYAML),
 	]
 
 	let types = "---\n\nsimple string: a text\nquoted string: 'john ''beatle''\n lennon'\nsplit string: >\n  two\n  words\nrows: |\n  first\n  second\n  last\nint: -12345\nuint: 67890\ndouble: 3.14159265\npositive: yes\nnegative: off\n"
@@ -454,6 +455,16 @@ classic:
 			print(error)
 		}
 		XCTAssert(obj == nil && err.hasPrefix("unexpected stream end"))
+	}
+
+	func testPartialYAML() throws {
+		let yaml = "a: "
+		let obj = try UniYAML.decode(yaml)
+		XCTAssert(
+			obj.type == .dictionary &&
+			obj.keys!.count == 1 &&
+			obj["a"]?.type == .pending
+		)
 	}
 
 }
