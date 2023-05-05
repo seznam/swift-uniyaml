@@ -33,6 +33,7 @@ class UniYAMLTests: XCTestCase {
 		("testYAMLUnexpectedBrace", testYAMLUnexpectedBrace),
 		("testYAMLUnexpectedEnd", testYAMLUnexpectedEnd),
 		("testPartialYAML", testPartialYAML),
+		("testPartialYAML2", testPartialYAML2),
 	]
 
 	let types = "---\n\nsimple string: a text\nquoted string: 'john ''beatle''\n lennon'\nsplit string: >\n  two\n  words\nrows: |\n  first\n  second\n  last\nint: -12345\nuint: 67890\ndouble: 3.14159265\npositive: yes\nnegative: off\n"
@@ -465,6 +466,20 @@ classic:
 			obj.keys!.count == 1 &&
 			obj["a"]?.type == .pending
 		)
+	}
+
+	func testPartialYAML2() {
+		let yaml = "a: 3\n "
+		var obj: YAML?
+		var err: String = ""
+		do {
+			obj = try UniYAML.decode(yaml)
+		} catch UniYAMLError.error(let detail) {
+			err = detail
+		} catch {
+			print(error)
+		}
+		XCTAssert(obj == nil && err.hasPrefix("missing value at line 2"))
 	}
 
 }

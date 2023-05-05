@@ -405,7 +405,10 @@ public struct UniYAML {
 			guard i >= block else {
 				throw UniYAMLError.error(detail: "unexpected indentation")
 			}
-			index = stream.index(index, offsetBy: i)
+			index = stream.index(index, offsetBy: i, limitedBy: stream.endIndex) ?? stream.endIndex
+			guard index < stream.endIndex else {
+				break
+			}
 			var location = Range(uncheckedBounds: (index, stream.endIndex))
 			if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n\u{85}"), range: location) {
 				location = Range(uncheckedBounds: (index, border.lowerBound))
