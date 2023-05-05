@@ -414,6 +414,9 @@ public struct UniYAML {
 				location = Range(uncheckedBounds: (index, border.lowerBound))
 				glue = (folded) ? " ":stream[border.lowerBound]
 			}
+			guard location.upperBound < stream.endIndex else {
+				break
+			}
 			index = stream.index(after: location.upperBound)
 			line += 1
 			if !value.isEmpty {
