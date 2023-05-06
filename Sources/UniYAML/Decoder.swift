@@ -436,8 +436,14 @@ public struct UniYAML {
 		}
 		let s = ss.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\u{85}", with: "")
 		if s.hasPrefix("'"), s.hasSuffix("'") {
+			guard s.count >= 2 else {
+				return nil
+			}
 			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)])
 		} else if s.hasPrefix("\""), s.hasSuffix("\"") {
+			guard s.count >= 2 else {
+				return nil
+			}
 			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
 					.replacingOccurrences(of: "\\\\", with: "_backslash_holder_") // XXX: bad ugly hack
 					.replacingOccurrences(of: "\\0", with: "\0")
