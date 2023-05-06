@@ -297,6 +297,9 @@ public struct UniYAML {
 			return nil
 		}
 		_ = parseIndent(stream, index: &index)
+		guard index < stream.endIndex else {
+			return nil
+		}
 		var search = Range(uncheckedBounds: (index, stream.endIndex))
 		var location = search
 		var fragments = ""
@@ -402,11 +405,17 @@ public struct UniYAML {
 			guard i >= block else {
 				throw UniYAMLError.error(detail: "unexpected indentation")
 			}
-			index = stream.index(index, offsetBy: i)
+			index = stream.index(index, offsetBy: i, limitedBy: stream.endIndex) ?? stream.endIndex
+			guard index < stream.endIndex else {
+				break
+			}
 			var location = Range(uncheckedBounds: (index, stream.endIndex))
 			if let border = stream.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n\u{85}"), range: location) {
 				location = Range(uncheckedBounds: (index, border.lowerBound))
 				glue = (folded) ? " ":stream[border.lowerBound]
+			}
+			guard location.upperBound < stream.endIndex else {
+				break
 			}
 			index = stream.index(after: location.upperBound)
 			line += 1
@@ -427,8 +436,14 @@ public struct UniYAML {
 		}
 		let s = ss.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\u{85}", with: "")
 		if s.hasPrefix("'"), s.hasSuffix("'") {
+			guard s.count >= 2 else {
+				return nil
+			}
 			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)])
 		} else if s.hasPrefix("\""), s.hasSuffix("\"") {
+			guard s.count >= 2 else {
+				return nil
+			}
 			return String(s[s.index(after: s.startIndex)..<s.index(before: s.endIndex)]
 					.replacingOccurrences(of: "\\\\", with: "_backslash_holder_") // XXX: bad ugly hack
 					.replacingOccurrences(of: "\\0", with: "\0")

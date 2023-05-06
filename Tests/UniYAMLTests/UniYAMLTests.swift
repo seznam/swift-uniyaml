@@ -32,6 +32,10 @@ class UniYAMLTests: XCTestCase {
 		("testYAMLUnexpectedColon", testYAMLUnexpectedColon),
 		("testYAMLUnexpectedBrace", testYAMLUnexpectedBrace),
 		("testYAMLUnexpectedEnd", testYAMLUnexpectedEnd),
+		("testPartialYAML", testPartialYAML),
+		("testPartialYAML2", testPartialYAML2),
+		("testPartialYAML3", testPartialYAML3),
+		("testPartialYAML4", testPartialYAML4),
 	]
 
 	let types = "---\n\nsimple string: a text\nquoted string: 'john ''beatle''\n lennon'\nsplit string: >\n  two\n  words\nrows: |\n  first\n  second\n  last\nint: -12345\nuint: 67890\ndouble: 3.14159265\npositive: yes\nnegative: off\n"
@@ -454,6 +458,54 @@ classic:
 			print(error)
 		}
 		XCTAssert(obj == nil && err.hasPrefix("unexpected stream end"))
+	}
+
+	func testPartialYAML() throws {
+		let yaml = "a: "
+		let obj = try UniYAML.decode(yaml)
+		XCTAssert(
+			obj.type == .dictionary &&
+			obj.keys!.count == 1 &&
+			obj["a"]?.type == .pending
+		)
+	}
+
+	func testPartialYAML2() {
+		let yaml = "a: 3\n "
+		var obj: YAML?
+		var err: String = ""
+		do {
+			obj = try UniYAML.decode(yaml)
+		} catch UniYAMLError.error(let detail) {
+			err = detail
+		} catch {
+			print(error)
+		}
+		XCTAssert(obj == nil && err.hasPrefix("missing value at line 2"))
+	}
+
+	func testPartialYAML3() {
+		let yaml = "a: 3\n  b"
+		var obj: YAML?
+		var err: String = ""
+		do {
+			obj = try UniYAML.decode(yaml)
+		} catch UniYAMLError.error(let detail) {
+			err = detail
+		} catch {
+			print(error)
+		}
+		XCTAssert(obj == nil && err.hasPrefix("missing value at line 2"))
+	}
+
+	func testPartialYAML4() throws {
+		let yaml = "a: '"
+		let obj = try UniYAML.decode(yaml)
+		XCTAssert(
+			obj.type == .dictionary &&
+			obj.keys!.count == 1 &&
+			obj["a"]?.type == .pending
+		)
 	}
 
 }
